@@ -1,11 +1,13 @@
-<?php      
+<?php
 session_start();
 if (isset($_SESSION['user_id'])) {
-    header("Location: " . ($_SESSION['role'] === 'admin' ? 'admin_dashboard.php' : 'dashboard.php'));
-    exit;
+    $dest = match($_SESSION['role']) {
+        'admin'   => 'admin_dashboard.php',
+        'manager' => 'manager_dashboard.php',
+        default   => 'dashboard.php',
+    };
+    header("Location: $dest"); exit;
 }
-
-/* ── http://localhost/succutrackv2/index.php ── */
 
 $error = "";
 if ($_POST) {
@@ -28,8 +30,12 @@ if ($_POST) {
             $_SESSION['user_id']  = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role']     = $user['role'];
-            header("Location: " . ($user['role'] === 'admin' ? 'admin_dashboard.php' : 'dashboard.php'));
-            exit;
+            $dest = match($user['role']) {
+                'admin'   => 'admin_dashboard.php',
+                'manager' => 'manager_dashboard.php',
+                default   => 'dashboard.php',
+            };
+            header("Location: $dest"); exit;
         } else {
             $error = "Incorrect password.";
         }

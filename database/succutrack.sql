@@ -1,15 +1,15 @@
-DROP DATABASE IF EXISTS succutrack;
-CREATE DATABASE succutrack;
-USE succutrack;
+DROP DATABASE IF EXISTS u442411629_succulent;
+CREATE DATABASE u442411629_succulent;
+USE u442411629_succulent;
 
---  TABLES
+-- TABLES
 
 CREATE TABLE users (
   user_id    INT AUTO_INCREMENT PRIMARY KEY,
   username   VARCHAR(50)  UNIQUE NOT NULL,
   password   VARCHAR(255) NOT NULL,
   email      VARCHAR(100) UNIQUE NOT NULL,
-  role       ENUM('admin','user') NOT NULL DEFAULT 'user',
+  role       ENUM('admin','manager','user') NOT NULL DEFAULT 'user',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -17,7 +17,9 @@ CREATE TABLE plants (
   plant_id   INT AUTO_INCREMENT PRIMARY KEY,
   user_id    INT NOT NULL,
   plant_name VARCHAR(100) NOT NULL,
-  city       VARCHAR(100) NOT NULL DEFAULT 'Manolo Fortich',
+  city       VARCHAR(100) NOT NULL DEFAULT 'Unknown',
+  latitude   DECIMAL(10,7) NULL,
+  longitude  DECIMAL(10,7) NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -39,23 +41,23 @@ CREATE TABLE user_logs (
   FOREIGN KEY (humidity_id) REFERENCES humidity(humidity_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---  USERS  (all passwords = "password")
+-- USERS  (all passwords = "password")
 
 INSERT INTO users (user_id, username, password, email, role, created_at) VALUES
-(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@succutrack.com', 'admin', '2026-01-01 08:00:00'),
-(2, 'juan',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'juan@succutrack.com',  'user',  '2026-01-02 09:00:00'),
-(3, 'maria', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'maria@succutrack.com', 'user',  '2026-01-03 10:00:00'),
-(4, 'pedro', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'pedro@succutrack.com', 'user',  '2026-01-04 11:00:00');
+(1, 'admin',    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@succutrack.com',   'admin',   '2026-01-01 08:00:00'),
+(2, 'juan',     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'juan@succutrack.com',    'user',    '2026-01-02 09:00:00'),
+(3, 'maria',    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'maria@succutrack.com',   'user',    '2026-01-03 10:00:00'),
+(4, 'pedro',    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'pedro@succutrack.com',   'user',    '2026-01-04 11:00:00'),
+(5, 'manager1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'manager@succutrack.com', 'manager', '2026-01-05 08:00:00');
 
---  PLANTS  (1 plant per user = 1 IoT device)
+-- PLANTS  (1 plant per user = 1 IoT device)
 
-INSERT INTO plants (plant_id, user_id, plant_name, city, created_at) VALUES
-(1, 2, 'Aloe Vera',  'Manolo Fortich', '2026-01-05 08:00:00'),
-(2, 3, 'Cactus',     'Manolo Fortich', '2026-01-06 09:00:00'),
-(3, 4, 'Jade Plant', 'Manolo Fortich', '2026-01-07 10:00:00');
+INSERT INTO plants (plant_id, user_id, plant_name, city, latitude, longitude, created_at) VALUES
+(1, 2, 'Aloe Vera',  'Manolo Fortich', 8.3720000, 124.8580000, '2026-01-05 08:00:00'),
+(2, 3, 'Cactus',     'Manolo Fortich', 8.3650000, 124.8700000, '2026-01-06 09:00:00'),
+(3, 4, 'Jade Plant', 'Manolo Fortich', 8.3580000, 124.8490000, '2026-01-07 10:00:00');
 
---  HUMIDITY READINGS  (10 per device)
---  Simulates past IoT device readings
+-- HUMIDITY READINGS  (10 per device)
 
 INSERT INTO humidity (humidity_id, plant_id, humidity_percent, status, recorded_at) VALUES
 -- Device 1: Aloe Vera (juan)
@@ -92,7 +94,7 @@ INSERT INTO humidity (humidity_id, plant_id, humidity_percent, status, recorded_
 (29, 3, 77.00, 'Humid', '2026-03-09 09:00:00'),
 (30, 3, 42.00, 'Ideal', '2026-03-10 08:15:00');
 
---  USER LOGS
+-- USER LOGS
 
 INSERT INTO user_logs (user_id, humidity_id) VALUES
 (2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),

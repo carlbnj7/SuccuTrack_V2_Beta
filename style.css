@@ -49,7 +49,7 @@ body {
   justify-content: space-between;
   position: sticky;
   top: 0;
-  z-index: 200;
+  z-index: 1000;
   box-shadow: 0 1px 0 var(--border);
 }
 .nav-brand {
@@ -81,7 +81,7 @@ body {
 
 /* ── Layout ── */
 .container {
-  max-width: 960px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 28px 20px 72px;
 }
@@ -331,12 +331,13 @@ body {
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.badge-dry   { background: var(--dry-bg);   color: var(--dry);   border: 1px solid var(--dry-bd);   }
-.badge-ideal { background: var(--ideal-bg); color: var(--ideal); border: 1px solid var(--ideal-bd); }
-.badge-humid { background: var(--humid-bg); color: var(--humid); border: 1px solid var(--humid-bd); }
-.badge-admin { background: #fef9ec; color: #8a6200; border: 1px solid #f0dfa0; }
-.badge-user  { background: var(--green-lt); color: var(--green); border: 1px solid var(--green-md); }
-.badge-lg    { font-size: .76rem; padding: 4px 13px; }
+.badge-dry     { background: var(--dry-bg);   color: var(--dry);   border: 1px solid var(--dry-bd);   }
+.badge-ideal   { background: var(--ideal-bg); color: var(--ideal); border: 1px solid var(--ideal-bd); }
+.badge-humid   { background: var(--humid-bg); color: var(--humid); border: 1px solid var(--humid-bd); }
+.badge-admin   { background: #fef9ec; color: #8a6200; border: 1px solid #f0dfa0; }
+.badge-manager { background: #f0eaff; color: #6b3ec8; border: 1px solid #d4baff; }
+.badge-user    { background: var(--green-lt); color: var(--green); border: 1px solid var(--green-md); }
+.badge-lg      { font-size: .76rem; padding: 4px 13px; }
 
 /* ── Table ── */
 .table-wrap { overflow-x: auto; }
@@ -565,11 +566,11 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 700px) {
-  .two-col       { grid-template-columns: 1fr; }
-  .stats-row     { grid-template-columns: repeat(3, 1fr); }
-  .add-user-form { grid-template-columns: 1fr; }
+  .two-col        { grid-template-columns: 1fr; }
+  .stats-row      { grid-template-columns: repeat(3, 1fr); }
+  .add-user-form  { grid-template-columns: 1fr; }
   .add-plant-form { grid-template-columns: 1fr; }
-  .navbar        { padding: 0 14px; }
-  .container     { padding: 16px 12px 48px; }
-  .auth-card     { padding: 30px 20px; }
+  .navbar         { padding: 0 14px; }
+  .container      { padding: 16px 12px 48px; }
+  .auth-card      { padding: 30px 20px; }
 }

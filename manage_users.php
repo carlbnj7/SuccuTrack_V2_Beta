@@ -12,6 +12,8 @@ if ($_POST && isset($_POST['new_username'])) {
     $e = trim($_POST['new_email']);
     $p = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
     $r = $_POST['new_role'];
+    // Validate role
+    if (!in_array($r, ['admin', 'manager', 'user'])) $r = 'user';
     try {
         $pdo->prepare("INSERT INTO users (username, email, password, role) VALUES (?,?,?,?)")
             ->execute([$u, $e, $p, $r]);
@@ -22,8 +24,10 @@ if ($_POST && isset($_POST['new_username'])) {
 }
 
 if ($_POST && isset($_POST['update_role'])) {
+    $newRole = $_POST['role'];
+    if (!in_array($newRole, ['admin', 'manager', 'user'])) $newRole = 'user';
     $pdo->prepare("UPDATE users SET role = ? WHERE user_id = ?")
-        ->execute([$_POST['role'], $_POST['uid']]);
+        ->execute([$newRole, $_POST['uid']]);
     $msg = "Role updated.";
 }
 
@@ -42,6 +46,9 @@ $users = $pdo->query("SELECT user_id, username, email, role, created_at FROM use
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Manage Users – SuccuTrack</title>
 <link rel="stylesheet" href="style.css">
+<style>
+.badge-manager { background: #f0eaff; color: #6b3ec8; border: 1px solid #d4baff; }
+</style>
 </head>
 <body>
 <nav class="navbar">
@@ -77,6 +84,7 @@ $users = $pdo->query("SELECT user_id, username, email, role, created_at FROM use
         <label>Role</label>
         <select name="new_role">
           <option value="user">User</option>
+          <option value="manager">Manager</option>
           <option value="admin">Admin</option>
         </select>
       </div>
@@ -102,8 +110,9 @@ $users = $pdo->query("SELECT user_id, username, email, role, created_at FROM use
               <input type="hidden" name="uid" value="<?= $u['user_id'] ?>">
               <input type="hidden" name="update_role" value="1">
               <select name="role" onchange="this.form.submit()" class="role-select">
-                <option value="user"  <?= $u['role']==='user'  ? 'selected':'' ?>>user</option>
-                <option value="admin" <?= $u['role']==='admin' ? 'selected':'' ?>>admin</option>
+                <option value="user"    <?= $u['role']==='user'    ? 'selected':'' ?>>user</option>
+                <option value="manager" <?= $u['role']==='manager' ? 'selected':'' ?>>manager</option>
+                <option value="admin"   <?= $u['role']==='admin'   ? 'selected':'' ?>>admin</option>
               </select>
             </form>
           </td>

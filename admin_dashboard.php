@@ -19,27 +19,34 @@ $counts = $pdo->query("SELECT status, COUNT(*) as total FROM humidity GROUP BY s
 $stats  = array_column($counts, 'total', 'status');
 $total  = array_sum(array_column($counts, 'total'));
 
-$recent = $pdo->query("
+$plants = $pdo->query("
+    SELECT p.plant_id, p.plant_name, p.city, p.created_at,
+           u.username,
+           (SELECT COUNT(*) FROM humidity h WHERE h.plant_id = p.plant_id) AS reading_count,
+           (SELECT h2.humidity_percent FROM humidity h2 WHERE h2.plant_id = p.plant_id ORDER BY h2.recorded_at DESC LIMIT 1) AS last_humidity,
+           (SELECT h3.status FROM humidity h3 WHERE h3.plant_id = p.plant_id ORDER BY h3.recorded_at DESC LIMIT 1) AS last_status
+    FROM plants p
+    JOIN users u ON p.user_id = u.user_id
+    ORDER BY p.plant_id ASC
+")->fetchAll();
+
+$humidity = $pdo->query("
+    SELECT h.humidity_id, p.plant_name, u.username, h.humidity_percent, h.status, h.recorded_at
+    FROM humidity h
+    LEFT JOIN plants p ON h.plant_id = p.plant_id
+    LEFT JOIN users u ON p.user_id = u.user_id
+    ORDER BY h.recorded_at DESC
+    LIMIT 200
+")->fetchAll();
+
+$logs = $pdo->query("
     SELECT ul.log_id, ul.humidity_id, u.username,
            p.plant_name, h.humidity_percent, h.status, h.recorded_at
     FROM user_logs ul
     JOIN users u    ON ul.user_id     = u.user_id
     JOIN humidity h ON ul.humidity_id = h.humidity_id
     LEFT JOIN plants p ON h.plant_id  = p.plant_id
-    ORDER BY h.recorded_at DESC LIMIT 50
-")->fetchAll();
-
-// Latest reading per plant for map markers
-$plantLatest = $pdo->query("
-    SELECT p.plant_id, p.plant_name, p.city, u.username,
-           h.humidity_percent, h.status, h.recorded_at
-    FROM plants p
-    JOIN users u ON p.user_id = u.user_id
-    LEFT JOIN humidity h ON h.humidity_id = (
-        SELECT h2.humidity_id FROM humidity h2
-        WHERE h2.plant_id = p.plant_id
-        ORDER BY h2.recorded_at DESC LIMIT 1
-    )
+    ORDER BY h.recorded_at DESC LIMIT 200
 ")->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -49,8 +56,75 @@ $plantLatest = $pdo->query("
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin – SuccuTrack</title>
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- DataTables -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/jquery.dataTables.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.min.js"></script>
+<style>
+/* DataTables overrides to match SuccuTrack theme */
+.dataTables_wrapper { font-size: .82rem; color: var(--text); }
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .82rem;
+  background: var(--white);
+  color: var(--text);
+}
+.dataTables_wrapper .dataTables_filter input:focus { outline: none; border-color: var(--green); }
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter { margin-bottom: 10px; color: var(--text-2); }
+.dataTables_wrapper .dataTables_info { font-size: .75rem; color: var(--text-3); margin-top: 10px; }
+.dataTables_wrapper .dataTables_paginate { margin-top: 10px; }
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border) !important;
+  background: var(--white) !important;
+  color: var(--text-2) !important;
+  font-size: .76rem;
+  cursor: pointer;
+  margin-left: 3px;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: var(--green) !important;
+  color: #fff !important;
+  border-color: var(--green) !important;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: var(--green-lt) !important;
+  color: var(--green) !important;
+  border-color: var(--green-md) !important;
+}
+table.dataTable thead th {
+  background: var(--bg) !important;
+  color: var(--text-3) !important;
+  font-weight: 600 !important;
+  font-size: .7rem !important;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 9px 13px !important;
+}
+table.dataTable tbody td { padding: 10px 13px !important; border-bottom: 1px solid var(--border) !important; }
+table.dataTable tbody tr:hover td { background: var(--bg) !important; }
+table.dataTable thead th.sorting:after,
+table.dataTable thead th.sorting_asc:after,
+table.dataTable thead th.sorting_desc:after { color: var(--green); }
+.tab-nav { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.tab-btn {
+  padding: 8px 18px; font-size: .82rem; font-weight: 500;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--white); color: var(--text-2); cursor: pointer;
+  font-family: 'DM Sans', sans-serif; transition: .15s;
+}
+.tab-btn.active { background: var(--green); color: #fff; border-color: var(--green); }
+.tab-btn:hover:not(.active) { background: var(--green-lt); color: var(--green); border-color: var(--green-md); }
+.tab-panel { display: none; } .tab-panel.active { display: block; }
+.badge-manager { background: #f0eaff; color: #6b3ec8; border: 1px solid #d4baff; }
+</style>
 </head>
 <body>
 
@@ -62,8 +136,8 @@ $plantLatest = $pdo->query("
       <span class="dot dot-on"></span> Live
     </div>
     <a href="manage_plants.php" class="btn btn-sm">Manage Plants</a>
-    <a href="manage_users.php" class="btn btn-sm">Manage Users</a>
-    <a href="logout.php" class="btn btn-sm">Logout</a>
+    <a href="manage_users.php"  class="btn btn-sm">Manage Users</a>
+    <a href="logout.php"        class="btn btn-sm">Logout</a>
   </div>
 </nav>
 
@@ -76,19 +150,19 @@ $plantLatest = $pdo->query("
   <!-- Stats -->
   <div class="stats-row">
     <div class="stat-card stat-total">
-      <div class="stat-num" id="stat-total"><?= $total ?></div>
-      <div class="stat-label">📊 Total</div>
+      <div class="stat-num"><?= $total ?></div>
+      <div class="stat-label">📊 Total Readings</div>
     </div>
     <div class="stat-card stat-dry">
-      <div class="stat-num" id="stat-dry"><?= $stats['Dry'] ?? 0 ?></div>
+      <div class="stat-num"><?= $stats['Dry'] ?? 0 ?></div>
       <div class="stat-label">🏜️ Dry</div>
     </div>
     <div class="stat-card stat-ideal">
-      <div class="stat-num" id="stat-ideal"><?= $stats['Ideal'] ?? 0 ?></div>
+      <div class="stat-num"><?= $stats['Ideal'] ?? 0 ?></div>
       <div class="stat-label">✅ Ideal</div>
     </div>
     <div class="stat-card stat-humid">
-      <div class="stat-num" id="stat-humid"><?= $stats['Humid'] ?? 0 ?></div>
+      <div class="stat-num"><?= $stats['Humid'] ?? 0 ?></div>
       <div class="stat-label">💧 Humid</div>
     </div>
     <div class="stat-card stat-users">
@@ -97,78 +171,123 @@ $plantLatest = $pdo->query("
     </div>
   </div>
 
-  <!-- Two-column: Map + Device Summary -->
-  <div class="two-col">
+  <!-- DataTables Section -->
+  <div class="card">
+    <h2>📋 System Data</h2>
+    <p class="subtitle">Browse, search, and sort all records across the system</p>
 
-    <!-- Map -->
-    <div class="card map-card">
-      <h2>📍 Device Locations</h2>
-      <p class="subtitle">All IoT sensors on the map</p>
-      <div id="map"></div>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-users')">👤 Users (<?= count($users) ?>)</button>
+      <button class="tab-btn"        onclick="switchTab('tab-plants')">🪴 Plants (<?= count($plants) ?>)</button>
+      <button class="tab-btn"        onclick="switchTab('tab-humidity')">💧 Humidity Readings (<?= count($humidity) ?>)</button>
+      <button class="tab-btn"        onclick="switchTab('tab-logs')">📋 User Logs (<?= count($logs) ?>)</button>
     </div>
 
-    <!-- Device Summary -->
-    <div class="card device-card">
-      <h2>🌿 Device Status</h2>
-      <p class="subtitle">Latest reading per device</p>
-      <div class="device-list">
-        <?php foreach ($plantLatest as $p): ?>
-        <?php $s = strtolower($p['status'] ?? 'none'); ?>
-        <div class="device-item device-item-<?= $s ?>">
-          <div class="device-top">
-            <div>
-              <div class="device-name">🪴 <?= htmlspecialchars($p['plant_name']) ?></div>
-              <div class="device-user">👤 <?= htmlspecialchars($p['username']) ?></div>
-            </div>
-            <div class="device-reading">
-              <?php if ($p['humidity_percent']): ?>
-                <span class="device-val"><?= $p['humidity_percent'] ?>%</span>
-                <span class="badge badge-<?= $s ?>"><?= $p['status'] ?></span>
-              <?php else: ?>
-                <span class="no-data">No data</span>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php if ($p['recorded_at']): ?>
-          <div class="device-time">🕐 <?= date('M d, Y H:i', strtotime($p['recorded_at'])) ?></div>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; ?>
+    <!-- Tab: Users -->
+    <div class="tab-panel active" id="tab-users">
+      <div class="table-wrap">
+        <table id="dt-users" class="det-table" style="width:100%">
+          <thead>
+            <tr><th>#</th><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($users as $u): ?>
+            <tr>
+              <td><?= $u['user_id'] ?></td>
+              <td><strong><?= htmlspecialchars($u['username']) ?></strong></td>
+              <td><?= htmlspecialchars($u['email']) ?></td>
+              <td><span class="badge badge-<?= $u['role'] ?>"><?= $u['role'] ?></span></td>
+              <td data-order="<?= $u['created_at'] ?>"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+              <td>
+                <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
+                <a href="delete_user.php?id=<?= $u['user_id'] ?>"
+                   class="btn btn-sm btn-danger"
+                   onclick="return confirm('Delete <?= htmlspecialchars($u['username']) ?>?')">Delete</a>
+                <?php else: ?>
+                <span class="you-label">You</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
       </div>
     </div>
 
-  </div>
-
-  <!-- Live Readings Table -->
-  <div class="card">
-    <div class="card-header-row">
-      <h2>Live Readings <span class="user-count" id="readingCount"><?= count($recent) ?></span></h2>
-      <span class="auto-refresh-note">Auto-refreshes every 5s</span>
-    </div>
-    <div id="logsTable">
-      <?php if (empty($recent)): ?>
-        <p class="empty-msg">No readings yet.</p>
-      <?php else: ?>
+    <!-- Tab: Plants -->
+    <div class="tab-panel" id="tab-plants">
       <div class="table-wrap">
-        <table class="det-table">
+        <table id="dt-plants" class="det-table" style="width:100%">
           <thead>
-            <tr>
-              <th>User</th>
-              <th>Plant / Device</th>
-              <th>Humidity</th>
-              <th>Status</th>
-              <th>Recorded At</th>
-              <th>Action</th>
-            </tr>
+            <tr><th>#</th><th>Plant Name</th><th>Owner</th><th>City</th><th>Readings</th><th>Last Humidity</th><th>Status</th><th>Added</th></tr>
           </thead>
           <tbody>
-            <?php foreach ($recent as $r): ?>
+            <?php foreach ($plants as $p): ?>
             <tr>
+              <td><?= $p['plant_id'] ?></td>
+              <td><strong>🪴 <?= htmlspecialchars($p['plant_name']) ?></strong></td>
+              <td><?= htmlspecialchars($p['username']) ?></td>
+              <td><?= htmlspecialchars($p['city']) ?></td>
+              <td><?= $p['reading_count'] ?></td>
+              <td><?= $p['last_humidity'] ? $p['last_humidity'] . '%' : '—' ?></td>
+              <td>
+                <?php if ($p['last_status']): ?>
+                <span class="badge badge-<?= strtolower($p['last_status']) ?>"><?= $p['last_status'] ?></span>
+                <?php else: ?>—<?php endif; ?>
+              </td>
+              <td data-order="<?= $p['created_at'] ?>"><?= date('M d, Y', strtotime($p['created_at'])) ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Humidity Readings -->
+    <div class="tab-panel" id="tab-humidity">
+      <div class="table-wrap">
+        <table id="dt-humidity" class="det-table" style="width:100%">
+          <thead>
+            <tr><th>#</th><th>Plant</th><th>Owner</th><th>Humidity %</th><th>Status</th><th>Recorded At</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($humidity as $h): ?>
+            <tr>
+              <td><?= $h['humidity_id'] ?></td>
+              <td><?= htmlspecialchars($h['plant_name'] ?? '—') ?></td>
+              <td><?= htmlspecialchars($h['username'] ?? '—') ?></td>
+              <td><strong><?= $h['humidity_percent'] ?>%</strong></td>
+              <td><span class="badge badge-<?= strtolower($h['status']) ?>"><?= $h['status'] ?></span></td>
+              <td data-order="<?= $h['recorded_at'] ?>"><?= date('M d, Y H:i', strtotime($h['recorded_at'])) ?></td>
+              <td>
+                <a href="admin_dashboard.php?action=delete_log&log_id=0&humidity_id=<?= $h['humidity_id'] ?>"
+                   class="btn btn-sm btn-danger"
+                   onclick="return confirm('Delete this humidity record?')">Delete</a>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: User Logs -->
+    <div class="tab-panel" id="tab-logs">
+      <div class="table-wrap">
+        <table id="dt-logs" class="det-table" style="width:100%">
+          <thead>
+            <tr><th>Log #</th><th>User</th><th>Plant / Device</th><th>Humidity %</th><th>Status</th><th>Recorded At</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($logs as $r): ?>
+            <tr>
+              <td><?= $r['log_id'] ?></td>
               <td><?= htmlspecialchars($r['username']) ?></td>
               <td><?= htmlspecialchars($r['plant_name'] ?? '—') ?></td>
               <td><strong><?= $r['humidity_percent'] ?>%</strong></td>
               <td><span class="badge badge-<?= strtolower($r['status']) ?>"><?= $r['status'] ?></span></td>
-              <td><?= $r['recorded_at'] ?></td>
+              <td data-order="<?= $r['recorded_at'] ?>"><?= date('M d, Y H:i', strtotime($r['recorded_at'])) ?></td>
               <td>
                 <a href="admin_dashboard.php?action=delete_log&log_id=<?= $r['log_id'] ?>&humidity_id=<?= $r['humidity_id'] ?>"
                    class="btn btn-sm btn-danger"
@@ -179,198 +298,51 @@ $plantLatest = $pdo->query("
           </tbody>
         </table>
       </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <!-- Registered Users -->
-  <div class="card">
-    <h2>Registered Users <span class="user-count"><?= count($users) ?></span></h2>
-    <div class="table-wrap">
-      <table class="det-table">
-        <thead>
-          <tr><th>#</th><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          <?php foreach ($users as $u): ?>
-          <tr>
-            <td><?= $u['user_id'] ?></td>
-            <td><strong><?= htmlspecialchars($u['username']) ?></strong></td>
-            <td><?= htmlspecialchars($u['email']) ?></td>
-            <td><span class="badge badge-<?= $u['role'] ?>"><?= $u['role'] ?></span></td>
-            <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
-            <td>
-              <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
-              <a href="delete_user.php?id=<?= $u['user_id'] ?>"
-                 class="btn btn-sm btn-danger"
-                 onclick="return confirm('Delete <?= htmlspecialchars($u['username']) ?>?')">Delete</a>
-              <?php else: ?>
-              <span class="you-label">You</span>
-              <?php endif; ?>
-            </td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
     </div>
   </div>
 
 </div>
 
 <script>
-// ── Leaflet Map ──
-const map = L.map('map').setView([12.8797, 121.7740], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors',
-  maxZoom: 18
-}).addTo(map);
-
-const plants = <?= json_encode($plantLatest) ?>;
-const colors = { dry: '#b85c2a', ideal: '#4a7c59', humid: '#3a6fa8', '': '#96aea0' };
-const allMarkers = [];
-
-function makePinIcon(color) {
-  return L.divIcon({
-    className: '',
-    html: `<div style="
-      background:${color};
-      width:34px;height:34px;
-      border-radius:50% 50% 50% 0;
-      transform:rotate(-45deg);
-      border:3px solid white;
-      box-shadow:0 2px 8px rgba(0,0,0,.25);
-    "></div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 34]
-  });
+// Tab switching
+function switchTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  // Redraw the DataTable in that tab so columns render correctly
+  const map = {
+    'tab-users': '#dt-users', 'tab-plants': '#dt-plants',
+    'tab-humidity': '#dt-humidity', 'tab-logs': '#dt-logs'
+  };
+  if (map[id]) $(map[id]).DataTable().columns.adjust().draw(false);
 }
 
-// Geocode a city string via Nominatim (rate-limited: 1 request/sec)
-async function geocodeCity(city) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
-  try {
-    const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+// Init DataTables
+$(document).ready(function () {
+  const commonOpts = {
+    pageLength: 10,
+    lengthMenu: [5, 10, 25, 50],
+    language: {
+      search: 'Search:',
+      lengthMenu: 'Show _MENU_ entries',
+      info: 'Showing _START_ to _END_ of _TOTAL_ records',
+      paginate: { previous: '‹', next: '›' }
     }
-  } catch (e) { /* network error */ }
-  return null;
-}
+  };
 
-// Sleep helper for Nominatim rate limit (1 req/s)
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+  $('#dt-users').DataTable({ ...commonOpts, order: [[4, 'desc']],
+    columnDefs: [{ targets: 5, orderable: false }] });
 
-async function addAllMarkers() {
-  // Deduplicate cities so we don't geocode the same city twice
-  const cityCache = {};
+  $('#dt-plants').DataTable({ ...commonOpts, order: [[7, 'desc']],
+    columnDefs: [{ targets: [4,5,6], type: 'num' }] });
 
-  for (let i = 0; i < plants.length; i++) {
-    const p      = plants[i];
-    const status = (p.status || '').toLowerCase();
-    const color  = colors[status] || colors[''];
-    const city   = p.city;
+  $('#dt-humidity').DataTable({ ...commonOpts, order: [[5, 'desc']],
+    columnDefs: [{ targets: 6, orderable: false }] });
 
-    let coords = cityCache[city];
-
-    if (!coords) {
-      if (i > 0) await sleep(1100); // Nominatim rate limit: 1 req/sec
-      coords = await geocodeCity(city);
-      if (coords) cityCache[city] = coords;
-    }
-
-    if (!coords) {
-      console.warn('Could not geocode city:', city);
-      continue;
-    }
-
-    // Tiny random offset (±0.0015°) so pins on the same city don't fully overlap
-    const jitter = () => (Math.random() - 0.5) * 0.003;
-    const lat = coords.lat + (cityCache[city]._used ? jitter() : 0);
-    const lng = coords.lng + (cityCache[city]._used ? jitter() : 0);
-    cityCache[city]._used = true;
-
-    const humidity = p.humidity_percent ? p.humidity_percent + '%' : 'No data';
-    const time     = p.recorded_at ? new Date(p.recorded_at).toLocaleString() : '—';
-
-    const marker = L.marker([lat, lng], { icon: makePinIcon(color) })
-      .addTo(map)
-      .bindPopup(`
-        <div style="font-family:'DM Sans',sans-serif;min-width:160px;padding:4px 0;">
-          <div style="font-weight:600;font-size:.9rem;margin-bottom:4px;">🪴 ${p.plant_name}</div>
-          <div style="font-size:.78rem;color:#506358;margin-bottom:2px;">👤 ${p.username}</div>
-          <div style="font-size:.78rem;color:#506358;margin-bottom:6px;">📍 ${city}</div>
-          <div style="font-size:1.1rem;font-weight:700;color:${color};">${humidity}</div>
-          <div style="font-size:.72rem;color:#96aea0;margin-top:2px;">${time}</div>
-        </div>
-      `);
-
-    allMarkers.push(marker);
-  }
-
-  // Fit map to show all markers if any were added
-  if (allMarkers.length > 0) {
-    const group = L.featureGroup(allMarkers);
-    map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 13 });
-  }
-}
-
-addAllMarkers();
-
-// ── Auto-refresh logs every 5s ──
-function refreshLogs() {
-  fetch('get_logs.php')
-    .then(r => r.json())
-    .then(data => {
-      const dry   = parseInt(data.stats['Dry']   || 0);
-      const ideal = parseInt(data.stats['Ideal'] || 0);
-      const humid = parseInt(data.stats['Humid'] || 0);
-      document.getElementById('stat-dry').textContent   = dry;
-      document.getElementById('stat-ideal').textContent = ideal;
-      document.getElementById('stat-humid').textContent = humid;
-      document.getElementById('stat-total').textContent = dry + ideal + humid;
-      document.getElementById('readingCount').textContent = data.logs.length;
-
-      if (!data.logs.length) {
-        document.getElementById('logsTable').innerHTML = '<p class="empty-msg">No readings yet.</p>';
-        return;
-      }
-
-      let html = `<div class="table-wrap"><table class="det-table">
-        <thead><tr>
-          <th>User</th><th>Plant / Device</th><th>Humidity</th>
-          <th>Status</th><th>Recorded At</th><th>Action</th>
-        </tr></thead><tbody>`;
-      data.logs.forEach(r => {
-        const s = r.status.toLowerCase();
-        html += `<tr>
-          <td>${esc(r.username)}</td>
-          <td>${esc(r.plant_name || '—')}</td>
-          <td><strong>${r.humidity_percent}%</strong></td>
-          <td><span class="badge badge-${s}">${r.status}</span></td>
-          <td>${r.recorded_at}</td>
-          <td><a href="admin_dashboard.php?action=delete_log&log_id=${r.log_id}&humidity_id=${r.humidity_id}"
-                 class="btn btn-sm btn-danger"
-                 onclick="return confirm('Delete?')">Delete</a></td>
-        </tr>`;
-      });
-      html += '</tbody></table></div>';
-      document.getElementById('logsTable').innerHTML = html;
-      document.getElementById('liveIndicator').innerHTML = '<span class="dot dot-on"></span> Live';
-    })
-    .catch(() => {
-      document.getElementById('liveIndicator').innerHTML = '<span class="dot dot-off"></span> Offline';
-    });
-}
-
-function esc(str) {
-  const d = document.createElement('div');
-  d.appendChild(document.createTextNode(str));
-  return d.innerHTML;
-}
-
-setInterval(refreshLogs, 5000);
+  $('#dt-logs').DataTable({ ...commonOpts, order: [[5, 'desc']],
+    columnDefs: [{ targets: 6, orderable: false }] });
+});
 </script>
 
 </body>
