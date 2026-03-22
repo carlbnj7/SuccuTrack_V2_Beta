@@ -5,9 +5,9 @@ date_default_timezone_set(APP_TIMEZONE);
 
 // ── Database ──────────────────────────────────────────────────────────────────
 $host = 'localhost';
-$db   = 'succutrackv3';
-$user = 'root';
-$pass = '';
+$db   = 'u442411629_succulent';
+$user = 'u442411629_dev_succulent';
+$pass = '%oV0p(24rNz7';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
@@ -75,7 +75,7 @@ define('OTP_MAX_ATTEMPTS',    5);
 define('OTP_LENGTH',          6);
 // true  → show OTP on screen (local dev)
 // false → send real email (production)
-define('OTP_DEV_MODE', true);
+define('OTP_DEV_MODE', false);
 
 // ── Pure PHP SMTP sender ──────────────────────────────────────────────────────
 function smtp_send(string $to, string $toName, string $subject, string $htmlBody, string $textBody): array
