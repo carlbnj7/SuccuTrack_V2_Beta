@@ -1,6 +1,6 @@
-DROP DATABASE IF EXISTS succutrackv2;
-CREATE DATABASE succutrackv2;
-USE succutrackv2;
+DROP DATABASE IF EXISTS succutrackv3;
+CREATE DATABASE succutrackv3;
+USE succutrackv3;
 
 -- TABLES
 
